@@ -48,8 +48,8 @@ public interface ObjectWrapper {
   
   boolean isCollection();
   
-  void add(Object element);
+  public void add(Object element);
   
-  <E> void addAll(List<E> element);
+  public <E> void addAll(List<E> element);
 
 }

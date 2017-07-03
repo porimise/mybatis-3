@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2016 the original author or authors.
+ *    Copyright 2009-2015 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -83,10 +83,9 @@ public class ReuseExecutor extends BaseExecutor {
     String sql = boundSql.getSql();
     if (hasStatementFor(sql)) {
       stmt = getStatement(sql);
-      applyTransactionTimeout(stmt);
     } else {
       Connection connection = getConnection(statementLog);
-      stmt = handler.prepare(connection, transaction.getTimeout());
+      stmt = handler.prepare(connection);
       putStatement(sql, stmt);
     }
     handler.parameterize(stmt);

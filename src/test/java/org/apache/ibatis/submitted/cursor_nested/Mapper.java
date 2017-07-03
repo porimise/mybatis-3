@@ -17,6 +17,8 @@ package org.apache.ibatis.submitted.cursor_nested;
 
 import org.apache.ibatis.cursor.Cursor;
 
+import java.util.List;
+
 public interface Mapper {
 
   Cursor<User> getAllUsers();

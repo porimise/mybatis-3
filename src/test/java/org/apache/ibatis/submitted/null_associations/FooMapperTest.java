@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2017 the original author or authors.
+ *    Copyright 2009-2015 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -24,28 +24,25 @@ import org.junit.*;
 
 import java.io.Reader;
 import java.sql.Connection;
-import java.sql.SQLException;
 
 public class FooMapperTest {
 
   private final static String SQL_MAP_CONFIG = "org/apache/ibatis/submitted/null_associations/sqlmap.xml";
   private static SqlSession session;
-  private static Connection conn;
 
   @BeforeClass
   public static void setUpBeforeClass() {
     try {
       final SqlSessionFactory factory = new SqlSessionFactoryBuilder().build(Resources.getResourceAsReader(SQL_MAP_CONFIG));
       session = factory.openSession();
-      conn = session.getConnection();
+      Connection conn = session.getConnection();
       ScriptRunner runner = new ScriptRunner(conn);
       runner.setLogWriter(null);
       runner.setErrorLogWriter(null);
       Reader reader = Resources.getResourceAsReader("org/apache/ibatis/submitted/null_associations/create-schema-mysql.sql");
       runner.runScript(reader);
-      reader.close();
     } catch (Exception ex) {
-      Assert.fail(ex.getMessage());
+      ex.printStackTrace();
     }
   }
 
@@ -85,8 +82,7 @@ public class FooMapperTest {
   }
 
   @AfterClass
-  public static void tearDownAfterClass() throws SQLException {
-    conn.close();
+  public static void tearDownAfterClass() {
     session.close();
   }
 

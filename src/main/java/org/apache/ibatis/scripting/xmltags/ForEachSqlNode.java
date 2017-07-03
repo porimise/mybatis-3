@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2017 the original author or authors.
+ *    Copyright 2009-2015 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -27,15 +27,15 @@ import org.apache.ibatis.session.Configuration;
 public class ForEachSqlNode implements SqlNode {
   public static final String ITEM_PREFIX = "__frch_";
 
-  private final ExpressionEvaluator evaluator;
-  private final String collectionExpression;
-  private final SqlNode contents;
-  private final String open;
-  private final String close;
-  private final String separator;
-  private final String item;
-  private final String index;
-  private final Configuration configuration;
+  private ExpressionEvaluator evaluator;
+  private String collectionExpression;
+  private SqlNode contents;
+  private String open;
+  private String close;
+  private String separator;
+  private String item;
+  private String index;
+  private Configuration configuration;
 
   public ForEachSqlNode(Configuration configuration, SqlNode contents, String collectionExpression, String index, String item, String open, String close, String separator) {
     this.evaluator = new ExpressionEvaluator();
@@ -61,10 +61,12 @@ public class ForEachSqlNode implements SqlNode {
     int i = 0;
     for (Object o : iterable) {
       DynamicContext oldContext = context;
-      if (first || separator == null) {
+      if (first) {
         context = new PrefixedContext(context, "");
-      } else {
+      } else if (separator != null) {
         context = new PrefixedContext(context, separator);
+      } else {
+          context = new PrefixedContext(context, "");
       }
       int uniqueNumber = context.getUniqueNumber();
       // Issue #709 
@@ -85,8 +87,6 @@ public class ForEachSqlNode implements SqlNode {
       i++;
     }
     applyClose(context);
-    context.getBindings().remove(item);
-    context.getBindings().remove(index);
     return true;
   }
 

@@ -95,7 +95,6 @@ public class EnumWithOgnlTest {
         SqlSession sqlSession = sqlSessionFactory.openSession();
         PersonMapper personMapper = sqlSession.getMapper(PersonMapper.class);
         List<Person> persons = personMapper.selectAllByTypeWithInterface(new PersonType() {
-            @Override
             public Type getType() {
                 return Person.Type.DIRECTOR;
             }
@@ -108,7 +107,6 @@ public class EnumWithOgnlTest {
         SqlSession sqlSession = sqlSessionFactory.openSession();
         PersonMapper personMapper = sqlSession.getMapper(PersonMapper.class);
         List<Person> persons = personMapper.selectAllByTypeNameAttributeWithInterface(new PersonType() {
-            @Override
             public Type getType() {
                 return Person.Type.DIRECTOR;
             }

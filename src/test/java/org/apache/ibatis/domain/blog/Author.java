@@ -91,7 +91,6 @@ public class Author implements Serializable {
     return favouriteSection;
   }
 
-  @Override
   public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof Author)) return false;
@@ -109,7 +108,6 @@ public class Author implements Serializable {
     return true;
   }
 
-  @Override
   public int hashCode() {
     int result;
     result = id;
@@ -121,7 +119,6 @@ public class Author implements Serializable {
     return result;
   }
 
-  @Override
   public String toString() {
     return "Author : " + id + " : " + username + " : " + email;
   }

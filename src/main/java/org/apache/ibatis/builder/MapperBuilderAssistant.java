@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2017 the original author or authors.
+ *    Copyright 2009-2015 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ import org.apache.ibatis.type.TypeHandler;
 public class MapperBuilderAssistant extends BaseBuilder {
 
   private String currentNamespace;
-  private final String resource;
+  private String resource;
   private Cache currentCache;
   private boolean unresolvedCacheRef; // issue #676
 
@@ -128,9 +128,11 @@ public class MapperBuilderAssistant extends BaseBuilder {
       boolean readWrite,
       boolean blocking,
       Properties props) {
+    typeClass = valueOrDefault(typeClass, PerpetualCache.class);
+    evictionClass = valueOrDefault(evictionClass, LruCache.class);
     Cache cache = new CacheBuilder(currentNamespace)
-        .implementation(valueOrDefault(typeClass, PerpetualCache.class))
-        .addDecorator(valueOrDefault(evictionClass, LruCache.class))
+        .implementation(typeClass)
+        .addDecorator(evictionClass)
         .clearInterval(flushInterval)
         .size(size)
         .readWrite(readWrite)
@@ -144,7 +146,8 @@ public class MapperBuilderAssistant extends BaseBuilder {
 
   public ParameterMap addParameterMap(String id, Class<?> parameterClass, List<ParameterMapping> parameterMappings) {
     id = applyCurrentNamespace(id, false);
-    ParameterMap parameterMap = new ParameterMap.Builder(configuration, id, parameterClass, parameterMappings).build();
+    ParameterMap.Builder parameterMapBuilder = new ParameterMap.Builder(configuration, id, parameterClass, parameterMappings);
+    ParameterMap parameterMap = parameterMapBuilder.build();
     configuration.addParameterMap(parameterMap);
     return parameterMap;
   }
@@ -164,13 +167,13 @@ public class MapperBuilderAssistant extends BaseBuilder {
     Class<?> javaTypeClass = resolveParameterJavaType(parameterType, property, javaType, jdbcType);
     TypeHandler<?> typeHandlerInstance = resolveTypeHandler(javaTypeClass, typeHandler);
 
-    return new ParameterMapping.Builder(configuration, property, javaTypeClass)
-        .jdbcType(jdbcType)
-        .resultMapId(resultMap)
-        .mode(parameterMode)
-        .numericScale(numericScale)
-        .typeHandler(typeHandlerInstance)
-        .build();
+    ParameterMapping.Builder builder = new ParameterMapping.Builder(configuration, property, javaTypeClass);
+    builder.jdbcType(jdbcType);
+    builder.resultMapId(resultMap);
+    builder.mode(parameterMode);
+    builder.numericScale(numericScale);
+    builder.typeHandler(typeHandlerInstance);
+    return builder.build();
   }
 
   public ResultMap addResultMap(
@@ -183,6 +186,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
     id = applyCurrentNamespace(id, false);
     extend = applyCurrentNamespace(extend, true);
 
+    ResultMap.Builder resultMapBuilder = new ResultMap.Builder(configuration, id, type, resultMappings, autoMapping);
     if (extend != null) {
       if (!configuration.hasResultMap(extend)) {
         throw new IncompleteElementException("Could not find a parent resultmap with id '" + extend + "'");
@@ -208,9 +212,8 @@ public class MapperBuilderAssistant extends BaseBuilder {
       }
       resultMappings.addAll(extendedResultMappings);
     }
-    ResultMap resultMap = new ResultMap.Builder(configuration, id, type, resultMappings, autoMapping)
-        .discriminator(discriminator)
-        .build();
+    resultMapBuilder.discriminator(discriminator);
+    ResultMap resultMap = resultMapBuilder.build();
     configuration.addResultMap(resultMap);
     return resultMap;
   }
@@ -243,7 +246,8 @@ public class MapperBuilderAssistant extends BaseBuilder {
       resultMap = applyCurrentNamespace(resultMap, true);
       namespaceDiscriminatorMap.put(e.getKey(), resultMap);
     }
-    return new Discriminator.Builder(configuration, resultMapping, namespaceDiscriminatorMap).build();
+    Discriminator.Builder discriminatorBuilder = new Discriminator.Builder(configuration, resultMapping, namespaceDiscriminatorMap);
+    return discriminatorBuilder.build();
   }
 
   public MappedStatement addMappedStatement(
@@ -275,28 +279,22 @@ public class MapperBuilderAssistant extends BaseBuilder {
     id = applyCurrentNamespace(id, false);
     boolean isSelect = sqlCommandType == SqlCommandType.SELECT;
 
-    MappedStatement.Builder statementBuilder = new MappedStatement.Builder(configuration, id, sqlSource, sqlCommandType)
-        .resource(resource)
-        .fetchSize(fetchSize)
-        .timeout(timeout)
-        .statementType(statementType)
-        .keyGenerator(keyGenerator)
-        .keyProperty(keyProperty)
-        .keyColumn(keyColumn)
-        .databaseId(databaseId)
-        .lang(lang)
-        .resultOrdered(resultOrdered)
-        .resultSets(resultSets)
-        .resultMaps(getStatementResultMaps(resultMap, resultType, id))
-        .resultSetType(resultSetType)
-        .flushCacheRequired(valueOrDefault(flushCache, !isSelect))
-        .useCache(valueOrDefault(useCache, isSelect))
-        .cache(currentCache);
+    MappedStatement.Builder statementBuilder = new MappedStatement.Builder(configuration, id, sqlSource, sqlCommandType);
+    statementBuilder.resource(resource);
+    statementBuilder.fetchSize(fetchSize);
+    statementBuilder.statementType(statementType);
+    statementBuilder.keyGenerator(keyGenerator);
+    statementBuilder.keyProperty(keyProperty);
+    statementBuilder.keyColumn(keyColumn);
+    statementBuilder.databaseId(databaseId);
+    statementBuilder.lang(lang);
+    statementBuilder.resultOrdered(resultOrdered);
+    statementBuilder.resulSets(resultSets);
+    setStatementTimeout(timeout, statementBuilder);
 
-    ParameterMap statementParameterMap = getStatementParameterMap(parameterMap, parameterType, id);
-    if (statementParameterMap != null) {
-      statementBuilder.parameterMap(statementParameterMap);
-    }
+    setStatementParameterMap(parameterMap, parameterType, statementBuilder);
+    setStatementResultMap(resultMap, resultType, resultSetType, statementBuilder);
+    setStatementCache(isSelect, flushCache, useCache, currentCache, statementBuilder);
 
     MappedStatement statement = statementBuilder.build();
     configuration.addMappedStatement(statement);
@@ -307,33 +305,47 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return value == null ? defaultValue : value;
   }
 
-  private ParameterMap getStatementParameterMap(
-      String parameterMapName,
+  private void setStatementCache(
+      boolean isSelect,
+      boolean flushCache,
+      boolean useCache,
+      Cache cache,
+      MappedStatement.Builder statementBuilder) {
+    flushCache = valueOrDefault(flushCache, !isSelect);
+    useCache = valueOrDefault(useCache, isSelect);
+    statementBuilder.flushCacheRequired(flushCache);
+    statementBuilder.useCache(useCache);
+    statementBuilder.cache(cache);
+  }
+
+  private void setStatementParameterMap(
+      String parameterMap,
       Class<?> parameterTypeClass,
-      String statementId) {
-    parameterMapName = applyCurrentNamespace(parameterMapName, true);
-    ParameterMap parameterMap = null;
-    if (parameterMapName != null) {
+      MappedStatement.Builder statementBuilder) {
+    parameterMap = applyCurrentNamespace(parameterMap, true);
+
+    if (parameterMap != null) {
       try {
-        parameterMap = configuration.getParameterMap(parameterMapName);
+        statementBuilder.parameterMap(configuration.getParameterMap(parameterMap));
       } catch (IllegalArgumentException e) {
-        throw new IncompleteElementException("Could not find parameter map " + parameterMapName, e);
+        throw new IncompleteElementException("Could not find parameter map " + parameterMap, e);
       }
     } else if (parameterTypeClass != null) {
       List<ParameterMapping> parameterMappings = new ArrayList<ParameterMapping>();
-      parameterMap = new ParameterMap.Builder(
+      ParameterMap.Builder inlineParameterMapBuilder = new ParameterMap.Builder(
           configuration,
-          statementId + "-Inline",
+          statementBuilder.id() + "-Inline",
           parameterTypeClass,
-          parameterMappings).build();
+          parameterMappings);
+      statementBuilder.parameterMap(inlineParameterMapBuilder.build());
     }
-    return parameterMap;
   }
 
-  private List<ResultMap> getStatementResultMaps(
+  private void setStatementResultMap(
       String resultMap,
       Class<?> resultType,
-      String statementId) {
+      ResultSetType resultSetType,
+      MappedStatement.Builder statementBuilder) {
     resultMap = applyCurrentNamespace(resultMap, true);
 
     List<ResultMap> resultMaps = new ArrayList<ResultMap>();
@@ -347,15 +359,24 @@ public class MapperBuilderAssistant extends BaseBuilder {
         }
       }
     } else if (resultType != null) {
-      ResultMap inlineResultMap = new ResultMap.Builder(
+      ResultMap.Builder inlineResultMapBuilder = new ResultMap.Builder(
           configuration,
-          statementId + "-Inline",
+          statementBuilder.id() + "-Inline",
           resultType,
           new ArrayList<ResultMapping>(),
-          null).build();
-      resultMaps.add(inlineResultMap);
+          null);
+      resultMaps.add(inlineResultMapBuilder.build());
     }
-    return resultMaps;
+    statementBuilder.resultMaps(resultMaps);
+
+    statementBuilder.resultSetType(resultSetType);
+  }
+
+  private void setStatementTimeout(Integer timeout, MappedStatement.Builder statementBuilder) {
+    if (timeout == null) {
+      timeout = configuration.getDefaultStatementTimeout();
+    }
+    statementBuilder.timeout(timeout);
   }
 
   public ResultMapping buildResultMapping(
@@ -376,19 +397,22 @@ public class MapperBuilderAssistant extends BaseBuilder {
     Class<?> javaTypeClass = resolveResultJavaType(resultType, property, javaType);
     TypeHandler<?> typeHandlerInstance = resolveTypeHandler(javaTypeClass, typeHandler);
     List<ResultMapping> composites = parseCompositeColumnName(column);
-    return new ResultMapping.Builder(configuration, property, column, javaTypeClass)
-        .jdbcType(jdbcType)
-        .nestedQueryId(applyCurrentNamespace(nestedSelect, true))
-        .nestedResultMapId(applyCurrentNamespace(nestedResultMap, true))
-        .resultSet(resultSet)
-        .typeHandler(typeHandlerInstance)
-        .flags(flags == null ? new ArrayList<ResultFlag>() : flags)
-        .composites(composites)
-        .notNullColumns(parseMultipleColumnNames(notNullColumn))
-        .columnPrefix(columnPrefix)
-        .foreignColumn(foreignColumn)
-        .lazy(lazy)
-        .build();
+    if (composites.size() > 0) {
+      column = null;
+    }
+    ResultMapping.Builder builder = new ResultMapping.Builder(configuration, property, column, javaTypeClass);
+    builder.jdbcType(jdbcType);
+    builder.nestedQueryId(applyCurrentNamespace(nestedSelect, true));
+    builder.nestedResultMapId(applyCurrentNamespace(nestedResultMap, true));
+    builder.resultSet(resultSet);
+    builder.typeHandler(typeHandlerInstance);
+    builder.flags(flags == null ? new ArrayList<ResultFlag>() : flags);
+    builder.composites(composites);
+    builder.notNullColumns(parseMultipleColumnNames(notNullColumn));
+    builder.columnPrefix(columnPrefix);
+    builder.foreignColumn(foreignColumn);
+    builder.lazy(lazy);
+    return builder.build();
   }
 
   private Set<String> parseMultipleColumnNames(String columnName) {
@@ -414,9 +438,8 @@ public class MapperBuilderAssistant extends BaseBuilder {
       while (parser.hasMoreTokens()) {
         String property = parser.nextToken();
         String column = parser.nextToken();
-        ResultMapping complexResultMapping = new ResultMapping.Builder(
-            configuration, property, column, configuration.getTypeHandlerRegistry().getUnknownTypeHandler()).build();
-        composites.add(complexResultMapping);
+        ResultMapping.Builder complexBuilder = new ResultMapping.Builder(configuration, property, column, configuration.getTypeHandlerRegistry().getUnknownTypeHandler());
+        composites.add(complexBuilder.build());
       }
     }
     return composites;

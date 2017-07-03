@@ -77,11 +77,9 @@ public class EnumTypeHandlerTest {
         SqlSession sqlSession = sqlSessionFactory.openSession();
         PersonMapper personMapper = sqlSession.getMapper(PersonMapper.class);
         List<Person> persons = personMapper.getByTypeNoParam(new TypeName() {
-            @Override
             public String getName() {
                 return "";
             }
-            @Override
             public Type getType() {
                 return Person.Type.PERSON;
             }

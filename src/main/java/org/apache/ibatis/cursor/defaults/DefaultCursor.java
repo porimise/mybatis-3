@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2016 the original author or authors.
+ *    Copyright 2009-2015 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -30,9 +30,6 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 /**
- * This is the default implementation of a MyBatis Cursor.
- * This implementation is not thread safe.
- *
  * @author Guillaume Darmont / guillaume@dropinocean.com
  */
 public class DefaultCursor<T> implements Cursor<T> {
@@ -44,31 +41,13 @@ public class DefaultCursor<T> implements Cursor<T> {
     private final RowBounds rowBounds;
     private final ObjectWrapperResultHandler<T> objectWrapperResultHandler = new ObjectWrapperResultHandler<T>();
 
-    private final CursorIterator cursorIterator = new CursorIterator();
-    private boolean iteratorRetrieved;
+    private int currentIndex = -1;
 
-    private CursorStatus status = CursorStatus.CREATED;
-    private int indexWithRowBound = -1;
+    private boolean iteratorAlreadyOpened = false;
 
-    private enum CursorStatus {
+    private boolean opened = false;
 
-        /**
-         * A freshly created cursor, database ResultSet consuming has not started
-         */
-        CREATED,
-        /**
-         * A cursor currently in use, database ResultSet consuming has started
-         */
-        OPEN,
-        /**
-         * A closed cursor, not fully consumed
-         */
-        CLOSED,
-        /**
-         * A fully consumed cursor, a consumed cursor is always closed
-         */
-        CONSUMED
-    }
+    private boolean resultSetConsumed = false;
 
     public DefaultCursor(DefaultResultSetHandler resultSetHandler, ResultMap resultMap, ResultSetWrapper rsw, RowBounds rowBounds) {
         this.resultSetHandler = resultSetHandler;
@@ -79,34 +58,26 @@ public class DefaultCursor<T> implements Cursor<T> {
 
     @Override
     public boolean isOpen() {
-        return status == CursorStatus.OPEN;
+        return opened;
     }
 
     @Override
     public boolean isConsumed() {
-        return status == CursorStatus.CONSUMED;
+        return resultSetConsumed;
     }
 
     @Override
     public int getCurrentIndex() {
-        return rowBounds.getOffset() + cursorIterator.iteratorIndex;
+        return currentIndex;
     }
 
     @Override
     public Iterator<T> iterator() {
-        if (iteratorRetrieved) {
-            throw new IllegalStateException("Cannot open more than one iterator on a Cursor");
-        }
-        iteratorRetrieved = true;
-        return cursorIterator;
+        return new CursorIterator();
     }
 
     @Override
     public void close() {
-        if (isClosed()) {
-            return;
-        }
-
         ResultSet rs = rsw.getResultSet();
         try {
             if (rs != null) {
@@ -117,7 +88,7 @@ public class DefaultCursor<T> implements Cursor<T> {
                     statement.close();
                 }
             }
-            status = CursorStatus.CLOSED;
+            opened = false;
         } catch (SQLException e) {
             // ignore
         }
@@ -125,19 +96,19 @@ public class DefaultCursor<T> implements Cursor<T> {
 
     protected T fetchNextUsingRowBound() {
         T result = fetchNextObjectFromDatabase();
-        while (result != null && indexWithRowBound < rowBounds.getOffset()) {
+        while (currentIndex < rowBounds.getOffset()) {
             result = fetchNextObjectFromDatabase();
         }
         return result;
     }
 
     protected T fetchNextObjectFromDatabase() {
-        if (isClosed()) {
+        if (resultSetConsumed) {
             return null;
         }
 
         try {
-            status = CursorStatus.OPEN;
+            opened = true;
             resultSetHandler.handleRowValues(rsw, resultMap, objectWrapperResultHandler, RowBounds.DEFAULT, null);
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -145,33 +116,29 @@ public class DefaultCursor<T> implements Cursor<T> {
 
         T next = objectWrapperResultHandler.result;
         if (next != null) {
-            indexWithRowBound++;
+            currentIndex++;
         }
         // No more object or limit reached
         if (next == null || (getReadItemsCount() == rowBounds.getOffset() + rowBounds.getLimit())) {
             close();
-            status = CursorStatus.CONSUMED;
+            resultSetConsumed = true;
         }
         objectWrapperResultHandler.result = null;
 
         return next;
     }
 
-    private boolean isClosed() {
-        return status == CursorStatus.CLOSED || status == CursorStatus.CONSUMED;
-    }
-
     private int getReadItemsCount() {
-        return indexWithRowBound + 1;
+        return currentIndex + 1;
     }
 
-    private static class ObjectWrapperResultHandler<T> implements ResultHandler<T> {
+    private static class ObjectWrapperResultHandler<E> implements ResultHandler {
 
-        private T result;
+        private E result;
 
         @Override
-        public void handleResult(ResultContext<? extends T> context) {
-            this.result = context.getResultObject();
+        public void handleResult(ResultContext context) {
+            this.result = (E) context.getResultObject();
             context.stop();
         }
     }
@@ -179,14 +146,16 @@ public class DefaultCursor<T> implements Cursor<T> {
     private class CursorIterator implements Iterator<T> {
 
         /**
-         * Holder for the next object to be returned
+         * Holder for the next objet to be returned
          */
         T object;
 
-        /**
-         * Index of objects returned using next(), and as such, visible to users.
-         */
-        int iteratorIndex = -1;
+        public CursorIterator() {
+            if (iteratorAlreadyOpened) {
+                throw new IllegalStateException("Cannot open more than one iterator on a Cursor");
+            }
+            iteratorAlreadyOpened = true;
+        }
 
         @Override
         public boolean hasNext() {
@@ -207,7 +176,6 @@ public class DefaultCursor<T> implements Cursor<T> {
 
             if (next != null) {
                 object = null;
-                iteratorIndex++;
                 return next;
             }
             throw new NoSuchElementException();
@@ -215,7 +183,7 @@ public class DefaultCursor<T> implements Cursor<T> {
 
         @Override
         public void remove() {
-            throw new UnsupportedOperationException("Cannot remove element from Cursor");
+            throw new UnsupportedOperationException("Cannot currently remove element from Cursor");
         }
     }
 }

@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2016 the original author or authors.
+ *    Copyright 2009-2015 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 package org.apache.ibatis.type;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,7 +29,6 @@ public class EnumOrdinalTypeHandlerTest extends BaseTypeHandlerTest {
 
   private static final TypeHandler<MyEnum> TYPE_HANDLER = new EnumOrdinalTypeHandler<MyEnum>(MyEnum.class);
 
-  @Override
   @Test
   public void shouldSetParameter() throws Exception {
     TYPE_HANDLER.setParameter(ps, 1, MyEnum.ONE, null);
@@ -43,39 +41,20 @@ public class EnumOrdinalTypeHandlerTest extends BaseTypeHandlerTest {
     verify(ps).setNull(1, JdbcType.VARCHAR.TYPE_CODE);
   }
 
-  @Override
   @Test
-  public void shouldGetResultFromResultSetByName() throws Exception {
+  public void shouldGetResultFromResultSet() throws Exception {
     when(rs.getInt("column")).thenReturn(0);
     when(rs.wasNull()).thenReturn(false);
     assertEquals(MyEnum.ONE, TYPE_HANDLER.getResult(rs, "column"));
   }
 
-  @Override
   @Test
-  public void shouldGetResultNullFromResultSetByName() throws Exception {
+  public void shouldGetNullResultFromResultSet() throws Exception {
     when(rs.getInt("column")).thenReturn(0);
     when(rs.wasNull()).thenReturn(true);
-    assertNull(TYPE_HANDLER.getResult(rs, "column"));
+    assertEquals(null, TYPE_HANDLER.getResult(rs, "column"));
   }
 
-  @Override
-  @Test
-  public void shouldGetResultFromResultSetByPosition() throws Exception {
-    when(rs.getInt(1)).thenReturn(0);
-    when(rs.wasNull()).thenReturn(false);
-    assertEquals(MyEnum.ONE, TYPE_HANDLER.getResult(rs, 1));
-  }
-
-  @Override
-  @Test
-  public void shouldGetResultNullFromResultSetByPosition() throws Exception {
-    when(rs.getInt(1)).thenReturn(0);
-    when(rs.wasNull()).thenReturn(true);
-    assertNull(TYPE_HANDLER.getResult(rs, 1));
-  }
-
-  @Override
   @Test
   public void shouldGetResultFromCallableStatement() throws Exception {
     when(cs.getInt(1)).thenReturn(0);
@@ -83,12 +62,11 @@ public class EnumOrdinalTypeHandlerTest extends BaseTypeHandlerTest {
     assertEquals(MyEnum.ONE, TYPE_HANDLER.getResult(cs, 1));
   }
 
-  @Override
   @Test
-  public void shouldGetResultNullFromCallableStatement() throws Exception {
+  public void shouldGetNullResultFromCallableStatement() throws Exception {
     when(cs.getInt(1)).thenReturn(0);
     when(cs.wasNull()).thenReturn(true);
-    assertNull(TYPE_HANDLER.getResult(cs, 1));
+    assertEquals(null, TYPE_HANDLER.getResult(cs, 1));
   }
 
 }

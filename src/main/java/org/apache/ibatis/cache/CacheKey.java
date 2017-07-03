@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2017 the original author or authors.
+ *    Copyright 2009-2015 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -16,10 +16,9 @@
 package org.apache.ibatis.cache;
 
 import java.io.Serializable;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.apache.ibatis.reflection.ArrayUtil;
 
 /**
  * @author Clinton Begin
@@ -33,11 +32,11 @@ public class CacheKey implements Cloneable, Serializable {
   private static final int DEFAULT_MULTIPLYER = 37;
   private static final int DEFAULT_HASHCODE = 17;
 
-  private final int multiplier;
+  private int multiplier;
   private int hashcode;
   private long checksum;
   private int count;
-  private transient List<Object> updateList;
+  private List<Object> updateList;
 
   public CacheKey() {
     this.hashcode = DEFAULT_HASHCODE;
@@ -56,7 +55,19 @@ public class CacheKey implements Cloneable, Serializable {
   }
 
   public void update(Object object) {
-    int baseHashCode = object == null ? 1 : ArrayUtil.hashCode(object); 
+    if (object != null && object.getClass().isArray()) {
+      int length = Array.getLength(object);
+      for (int i = 0; i < length; i++) {
+        Object element = Array.get(object, i);
+        doUpdate(element);
+      }
+    } else {
+      doUpdate(object);
+    }
+  }
+
+  private void doUpdate(Object object) {
+    int baseHashCode = object == null ? 1 : object.hashCode();
 
     count++;
     checksum += baseHashCode;
@@ -97,8 +108,14 @@ public class CacheKey implements Cloneable, Serializable {
     for (int i = 0; i < updateList.size(); i++) {
       Object thisObject = updateList.get(i);
       Object thatObject = cacheKey.updateList.get(i);
-      if (!ArrayUtil.equals(thisObject, thatObject)) {
-        return false;
+      if (thisObject == null) {
+        if (thatObject != null) {
+          return false;
+        }
+      } else {
+        if (!thisObject.equals(thatObject)) {
+          return false;
+        }
       }
     }
     return true;
@@ -112,9 +129,10 @@ public class CacheKey implements Cloneable, Serializable {
   @Override
   public String toString() {
     StringBuilder returnValue = new StringBuilder().append(hashcode).append(':').append(checksum);
-    for (Object object : updateList) {
-      returnValue.append(':').append(ArrayUtil.toString(object));
+    for (int i = 0; i < updateList.size(); i++) {
+      returnValue.append(':').append(updateList.get(i));
     }
+
     return returnValue.toString();
   }
 

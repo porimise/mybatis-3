@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2017 the original author or authors.
+ *    Copyright 2009-2015 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -49,7 +49,6 @@ public class CallSettersOnNullsTest {
     ScriptRunner runner = new ScriptRunner(conn);
     runner.setLogWriter(null);
     runner.runScript(reader);
-    conn.close();
     reader.close();
     session.close();
   }
@@ -96,10 +95,7 @@ public class CallSettersOnNullsTest {
     try {
       Mapper mapper = sqlSession.getMapper(Mapper.class);
       List<Map<String, Object>> oneColumns = mapper.getNameOnly();
-      // When callSetterOnNull is true, setters are called with null values
-      // but if all the values for an object are null
-      // the object itself should be null (same as default behaviour)
-      Assert.assertNull(oneColumns.get(1));
+      Assert.assertNotNull(oneColumns.get(1));
     } finally {
       sqlSession.close();
     }

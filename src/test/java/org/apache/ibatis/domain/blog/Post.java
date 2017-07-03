@@ -102,7 +102,6 @@ public class Post {
     this.tags = tags;
   }
 
-  @Override
   public String toString() {
     return "Post: " + id + " : " + subject + " : " + body + " : " + section + " : " + createdOn + " (" + author + ") (" + blog + ")";
   }
