@@ -14,16 +14,21 @@
 --    limitations under the License.
 --
 
-drop table users if exists;
+CREATE SCHEMA mbtest;
 
-create table users (
-  id int,
-  name varchar(20),
-  logical_delete boolean default false
+CREATE TABLE mbtest.users (
+  user_id serial PRIMARY KEY,
+  name character varying(30)
 );
 
-insert into users (id, name) values(1, 'User1');
-insert into users (id, name) values(2, 'User2');
-insert into users (id, name) values(3, 'User3');
-insert into users (id, name, logical_delete) values(4, 'User4', true);
+INSERT INTO mbtest.users (name) values 
+('Jimmy');
 
+
+CREATE TABLE mbtest.sections (
+  section_id int PRIMARY KEY,
+  name character varying(30)
+);
+
+INSERT INTO mbtest.sections (section_id, name) values 
+(1, 'Section 1');
