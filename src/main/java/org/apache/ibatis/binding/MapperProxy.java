@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2017 the original author or authors.
+ *    Copyright 2009-2018 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -60,12 +60,7 @@ public class MapperProxy<T> implements InvocationHandler, Serializable {
   }
 
   private MapperMethod cachedMapperMethod(Method method) {
-    MapperMethod mapperMethod = methodCache.get(method);
-    if (mapperMethod == null) {
-      mapperMethod = new MapperMethod(mapperInterface, method, sqlSession.getConfiguration());
-      methodCache.put(method, mapperMethod);
-    }
-    return mapperMethod;
+    return methodCache.computeIfAbsent(method, k -> new MapperMethod(mapperInterface, method, sqlSession.getConfiguration()));
   }
 
   @UsesJava7
@@ -88,8 +83,8 @@ public class MapperProxy<T> implements InvocationHandler, Serializable {
    * Backport of java.lang.reflect.Method#isDefault()
    */
   private boolean isDefaultMethod(Method method) {
-    return ((method.getModifiers()
-        & (Modifier.ABSTRACT | Modifier.PUBLIC | Modifier.STATIC)) == Modifier.PUBLIC)
+    return (method.getModifiers()
+        & (Modifier.ABSTRACT | Modifier.PUBLIC | Modifier.STATIC)) == Modifier.PUBLIC
         && method.getDeclaringClass().isInterface();
   }
 }
